@@ -29,7 +29,10 @@ export function goToPage(page: number) {
 export function scrollToPage(page: number) {
   const el = document.getElementById(`page-container-${page}`)
   if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const container = el.closest('.pdf-viewer') as HTMLElement
+    if (container) {
+      container.scrollTop = el.offsetTop - 16
+    }
   }
 }
 

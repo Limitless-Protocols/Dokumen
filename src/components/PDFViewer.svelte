@@ -41,7 +41,6 @@
       rerenderAll()
       if (speaking || currentBoundary) {
         setTimeout(() => {
-          scrollToPage(playingPage)
           const boundary = currentBoundary
           if (boundary) {
             highlightTtsOnPage(playingPage, boundary.charIndex, boundary.charLength)
@@ -471,8 +470,16 @@
     const firstIdx = matchedSpans.size > 0 ? Math.min(...matchedSpans) : -1
     if (firstIdx >= 0) {
       const el = spans[firstIdx].el
-      el.scrollIntoView({ behavior: 'smooth', block: fitModeValue === 'height' ? 'nearest' : 'center' })
       updateFocusOverlay(pageNum, el)
+
+      if (fitModeValue !== 'height' && scrollContainer) {
+        const containerRect = scrollContainer.getBoundingClientRect()
+        const spanRect = el.getBoundingClientRect()
+        if (spanRect.top < containerRect.top || spanRect.bottom > containerRect.bottom) {
+          const spanCenterY = spanRect.top + spanRect.height / 2 - containerRect.top
+          scrollContainer.scrollTop += spanCenterY - scrollContainer.clientHeight / 2
+        }
+      }
     }
   }
 
