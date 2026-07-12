@@ -39,6 +39,15 @@
     if (pdfDoc && scrollContainer) {
       recalculateScale()
       rerenderAll()
+      if (speaking || currentBoundary) {
+        setTimeout(() => {
+          scrollToPage(playingPage)
+          const boundary = currentBoundary
+          if (boundary) {
+            highlightTtsOnPage(playingPage, boundary.charIndex, boundary.charLength)
+          }
+        }, 100)
+      }
     }
   })
   activeSearchQuery.subscribe(v => { searchQuery = v })
