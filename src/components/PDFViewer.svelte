@@ -62,7 +62,7 @@
     if (fitModeValue === 'width') {
       scale = (getContainerWidth() - 40) / (page.width / (page.scale || 1))
     } else {
-      scale = (getContainerHeight() - 40) / (page.height / (page.scale || 1))
+      scale = (getContainerHeight() - 48) / (page.height / (page.scale || 1))
     }
   }
 
