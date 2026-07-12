@@ -1,4 +1,7 @@
 node_modules
 out
+dist
 .dokumen
 *.log
+test-tts.mp3
+test-tts.mp3.json

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "PDF Reader with Text-to-Speech",
   "main": "./out/main/main.js",
-  "author": "Limitless Protocols",
+  "author": "Limitless Protocols <pranto.smss.dev@gmail.com>",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
