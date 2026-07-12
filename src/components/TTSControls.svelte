@@ -1,18 +1,36 @@
 <script lang="ts">
-  import { ttsState, speak, pause, resume, stop, nextSentence, prevSentence, setRate, setVoice, ttsConfig, initTTS, pageText } from '../stores/tts.svelte'
+  import { get } from 'svelte/store'
+  import { ttsState, speak, pause, resume, stop, nextSentence, prevSentence,
+           setRate, setWebSpeechVoice, setEdgeVoice, retryEdge, ttsConfig, initTTS, pageText,
+           ttsEngine, edgeVoices, loadEdgeVoices } from '../stores/tts.svelte'
   import { currentPage, totalPages, pdfDocStore, scrollToPage } from '../stores/reader.svelte'
   import { extractTextFromPage } from '../lib/pdfTextExtract'
 
-  let availableVoices = $state<SpeechSynthesisVoice[]>([])
+  let availableVoices = $state<any[]>([])
 
+  // Load voices based on selected engine
   $effect(() => {
     initTTS()
-    function loadVoices() {
+
+    if ($ttsEngine === 'edge') {
+      loadEdgeVoices()
+    } else {
+      function loadWebSpeechVoices() {
+        availableVoices = window.speechSynthesis?.getVoices() || []
+      }
+      loadWebSpeechVoices()
+      window.speechSynthesis?.addEventListener('voiceschanged', loadWebSpeechVoices)
+      return () => window.speechSynthesis?.removeEventListener('voiceschanged', loadWebSpeechVoices)
+    }
+  })
+
+  // Update available voices when engine or edge voice list changes
+  $effect(() => {
+    if ($ttsEngine === 'edge') {
+      availableVoices = $edgeVoices
+    } else {
       availableVoices = window.speechSynthesis?.getVoices() || []
     }
-    loadVoices()
-    window.speechSynthesis?.addEventListener('voiceschanged', loadVoices)
-    return () => window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices)
   })
 
   async function handlePlayPause() {
@@ -72,6 +90,27 @@
   }
 
   const speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
+
+  async function handleEngineChange(e: Event) {
+    const val = (e.target as HTMLSelectElement).value as 'webspeech' | 'edge'
+    ttsEngine.set(val)
+    try {
+      const settings = await window.electronAPI.loadSettings()
+      settings.ttsEngine = val
+      await window.electronAPI.saveSettings(settings)
+    } catch {}
+    if (val === 'edge') {
+      await loadEdgeVoices()
+      // Auto-select first Edge voice if none selected yet
+      const config = get(ttsConfig)
+      if (!config.edgeVoiceName) {
+        const voices = get(edgeVoices)
+        if (voices.length > 0) {
+          setEdgeVoice(voices[0].shortName)
+        }
+      }
+    }
+  }
 </script>
 
 <div class="tts-controls">
@@ -82,8 +121,14 @@
       ◄◄
     </button>
 
-    <button class="play-btn" class:playing={$ttsState === 'speaking'} onclick={handlePlayPause} title={$ttsState === 'speaking' ? 'Pause' : 'Play'}>
-      {#if $ttsState === 'speaking'}
+    <button class="play-btn" class:playing={$ttsState === 'speaking'} class:loading={$ttsState === 'loading'} onclick={handlePlayPause}
+            disabled={$ttsState === 'loading'}
+            title={$ttsState === 'speaking' ? 'Pause' : $ttsState === 'loading' ? 'Generating audio...' : 'Play'}>
+      {#if $ttsState === 'loading'}
+        <svg class="spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="9" stroke-dasharray="40" stroke-dashoffset="12" stroke-linecap="round"/>
+        </svg>
+      {:else if $ttsState === 'speaking'}
         <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
           <rect x="6" y="4" width="4" height="16" rx="1"/>
           <rect x="14" y="4" width="4" height="16" rx="1"/>
@@ -104,6 +149,12 @@
     <button class="control-btn" onclick={nextSentence} disabled={$ttsState === 'idle'} title="Next Sentence">
       ►►
     </button>
+
+    {#if $ttsState === 'error'}
+      <button class="control-btn retry-btn" onclick={retryEdge} title="Retry with Edge TTS">
+        ↻ Retry Edge
+      </button>
+    {/if}
   </div>
 
   <div class="page-controls">
@@ -119,6 +170,22 @@
   </div>
 
   <div class="settings">
+    <div class="setting-row">
+      <label for="engine">Engine</label>
+      <select
+        id="engine"
+        value={$ttsEngine}
+        onchange={handleEngineChange}
+      >
+        <option value="webspeech">Web Speech API</option>
+        <option value="edge">Edge TTS (Recommended)</option>
+      </select>
+    </div>
+
+    {#if $ttsEngine === 'edge'}
+      <p class="setting-hint">Page text is sent to Microsoft's servers for higher-quality voices.</p>
+    {/if}
+
     <div class="setting-row">
       <label for="speed">Speed</label>
       <select
@@ -136,12 +203,16 @@
       <label for="voice">Voice</label>
       <select
         id="voice"
-        value={$ttsConfig.voiceName}
-        onchange={(e) => setVoice((e.target as HTMLSelectElement).value)}
+        value={$ttsEngine === 'edge' ? $ttsConfig.edgeVoiceName : $ttsConfig.webSpeechVoiceName}
+        onchange={(e) => {
+          const val = (e.target as HTMLSelectElement).value
+          if ($ttsEngine === 'edge') setEdgeVoice(val)
+          else setWebSpeechVoice(val)
+        }}
       >
         {#each availableVoices as voice}
-          <option value={voice.name}>
-            {voice.name}
+          <option value={$ttsEngine === 'edge' ? voice.shortName : voice.name}>
+            {$ttsEngine === 'edge' ? voice.name : voice.name}
           </option>
         {/each}
       </select>
@@ -223,6 +294,20 @@
     background: #d97706;
   }
 
+  .play-btn.loading {
+    background: var(--accent);
+    opacity: 0.8;
+    cursor: wait;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .spinner {
+    animation: spin 0.8s linear infinite;
+  }
+
   .play-btn svg, .stop-btn svg {
     filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.25));
   }
@@ -249,6 +334,22 @@
   .stop-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;
+  }
+
+  .retry-btn {
+    background: var(--error);
+    color: white;
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+
+  .retry-btn:hover {
+    background: #c81e1e;
   }
 
   .page-controls {
@@ -294,5 +395,12 @@
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .setting-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin: -4px 0 0 0;
+    line-height: 1.3;
   }
 </style>

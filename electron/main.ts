@@ -1,10 +1,23 @@
-import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron'
+import { app, protocol, net, BrowserWindow, shell, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync } from 'fs'
 import { basename } from 'path'
 import { homedir } from 'os'
+import { pathToFileURL } from 'node:url'
+import { EdgeTTS } from 'node-edge-tts'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
+function toAppTtsUrl(filePath: string): string {
+  return pathToFileURL(filePath).toString().replace(/^file:/, 'app-tts:')
+}
 
 app.disableHardwareAcceleration()
+
+// Must run before app.whenReady()
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app-tts', privileges: { standard: true, stream: true, bypassCSP: false } }
+])
 
 process.on('uncaughtException', (err) => {
   console.error('[Dokumen] Uncaught exception:', err)
@@ -200,12 +213,89 @@ Terminal=false
       recentFiles: [],
       lastFilePath: null,
       lastPage: 1,
-      lastZoom: 1.0
+      lastZoom: 1.0,
+      ttsEngine: 'webspeech'
     })
   })
 
   ipcMain.handle('settings:save', (_event, settings: unknown) => {
     writeJSON(SETTINGS_FILE, settings)
+  })
+
+  // ── Edge TTS handlers ──────────────────────────────────────────────
+
+  let voiceCache: { name: string; shortName: string; gender: string; locale: string }[] | null = null
+
+  ipcMain.handle('tts:listVoices', async () => {
+    if (voiceCache) return voiceCache
+    try {
+      const res = await fetch(
+        'https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/voices/list?trustedclienttoken=6A5AA1D4EAFF4E9FB37E23D68491D6F4'
+      )
+      const voices = await res.json() as any[]
+      voiceCache = voices.map(v => ({
+        name: v.Name,
+        shortName: v.ShortName,
+        gender: v.Gender,
+        locale: v.Locale
+      }))
+      return voiceCache
+    } catch (err) {
+      console.error('[Dokumen] Failed to fetch TTS voices:', err)
+      return []
+    }
+  })
+
+  let activeRequestId: string | null = null
+
+  ipcMain.handle('tts:speak', async (_e, { text, voice, rate, pitch, volume, requestId }: {
+    text: string; voice: string; rate: string; pitch: string; volume: string; requestId: string
+  }) => {
+    activeRequestId = requestId
+    const id = crypto.randomUUID()
+    const tempDir = app.getPath('temp')
+    const audioPath = path.join(tempDir, `dokumen-tts-${id}.mp3`)
+    const subsPath = path.join(tempDir, `dokumen-tts-${id}.json`)
+
+    try {
+      const tts = new EdgeTTS({ voice, rate, pitch, volume, saveSubtitles: true, timeout: 60000 })
+      await tts.ttsPromise(text, audioPath)
+
+      // Request may have been superseded while we awaited network I/O
+      if (activeRequestId !== requestId) {
+        fs.unlink(audioPath).catch(() => {})
+        fs.unlink(subsPath).catch(() => {})
+        return null
+      }
+
+      let subtitles: { part: string; start: number; end: number }[] = []
+      try {
+        const raw = await fs.readFile(subsPath, 'utf-8')
+        subtitles = JSON.parse(raw)
+      } catch {
+        // subtitle file may not exist if saveSubtitles failed silently
+      }
+
+      return {
+        requestId,
+        audioUrl: toAppTtsUrl(audioPath),
+        subtitles,
+        cleanup: [audioPath, subsPath]
+      }
+    } catch (err) {
+      console.error('[Dokumen] TTS synthesis failed:', err)
+      fs.unlink(audioPath).catch(() => {})
+      fs.unlink(subsPath).catch(() => {})
+      return null
+    }
+  })
+
+  ipcMain.handle('tts:stop', () => {
+    activeRequestId = null
+  })
+
+  ipcMain.handle('tts:cleanup', async (_e, filePaths: string[]) => {
+    await Promise.all(filePaths.map(p => fs.unlink(p).catch(() => {})))
   })
 }
 
@@ -262,6 +352,23 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     console.log('[Dokumen] App ready, platform:', process.platform)
+
+    // Serve TTS audio files from disk via custom protocol
+    protocol.handle('app-tts', async (request) => {
+      const fileUrl = request.url.replace(/^app-tts:/, 'file:')
+      try {
+        const response = await net.fetch(fileUrl)
+        const headers = new Headers(response.headers)
+        headers.set('Cache-Control', 'no-store')
+        return new Response(response.body, { status: response.status, headers })
+      } catch {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[app-tts] file not found:', fileUrl)
+        }
+        return new Response('Not Found', { status: 404 })
+      }
+    })
+
     createWindow()
 
     if (process.platform !== 'darwin') {

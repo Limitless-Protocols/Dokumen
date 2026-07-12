@@ -9,6 +9,7 @@
   import DropZone from './components/DropZone.svelte'
   import DefaultHandlerDialog from './components/DefaultHandlerDialog.svelte'
   import { theme } from './stores/reader.svelte'
+  import { ttsEngine } from './stores/tts.svelte'
 
   let showSidebar = $state(false)
   let showTTSPanel = $state(false)
@@ -37,6 +38,9 @@
       if (settings.theme) {
         theme.set(settings.theme)
         document.documentElement.classList.toggle('dark', settings.theme === 'dark')
+      }
+      if (settings.ttsEngine) {
+        ttsEngine.set(settings.ttsEngine)
       }
     } catch {
       // ignore

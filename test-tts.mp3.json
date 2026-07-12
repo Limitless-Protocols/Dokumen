@@ -1,0 +1,32 @@
+[
+  {
+    "part": "Hello ",
+    "start": 100,
+    "end": 475
+  },
+  {
+    "part": "world, ",
+    "start": 487,
+    "end": 850
+  },
+  {
+    "part": "this ",
+    "start": 1075,
+    "end": 1237
+  },
+  {
+    "part": "is ",
+    "start": 1250,
+    "end": 1362
+  },
+  {
+    "part": "a ",
+    "start": 1375,
+    "end": 1450
+  },
+  {
+    "part": "test.",
+    "start": 1462,
+    "end": 2000
+  }
+]

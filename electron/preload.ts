@@ -1,5 +1,28 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+export interface TTSSpeakParams {
+  text: string
+  voice: string
+  rate: string
+  pitch: string
+  volume: string
+  requestId: string
+}
+
+export interface TTSVoice {
+  name: string
+  shortName: string
+  gender: string
+  locale: string
+}
+
+export interface TTSSpeakResult {
+  requestId: string
+  audioUrl: string
+  subtitles: { part: string; start: number; end: number }[]
+  cleanup: string[]
+}
+
 const electronAPI = {
   openFileDialog: (): Promise<string | null> => ipcRenderer.invoke('dialog:openFile'),
   readFile: (filePath: string): Promise<ArrayBuffer> => ipcRenderer.invoke('file:read', filePath),
@@ -30,6 +53,12 @@ const electronAPI = {
   saveBookmarks: (bookmarks: any[]): Promise<void> => ipcRenderer.invoke('bookmarks:save', bookmarks),
   loadSettings: (): Promise<any> => ipcRenderer.invoke('settings:load'),
   saveSettings: (settings: any): Promise<void> => ipcRenderer.invoke('settings:save', settings),
+
+  // Edge TTS
+  ttsListVoices: (): Promise<TTSVoice[]> => ipcRenderer.invoke('tts:listVoices'),
+  ttsSpeak: (params: TTSSpeakParams): Promise<TTSSpeakResult | null> => ipcRenderer.invoke('tts:speak', params),
+  ttsStop: (): Promise<void> => ipcRenderer.invoke('tts:stop'),
+  ttsCleanup: (filePaths: string[]): Promise<void> => ipcRenderer.invoke('tts:cleanup', filePaths),
 
   platform: process.platform
 }
