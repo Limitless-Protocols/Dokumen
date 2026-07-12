@@ -1,0 +1,41 @@
+appId: com.limitless.dokumen
+productName: Dokumen
+copyright: Copyright © 2026 Limitless
+
+fileAssociations:
+  - ext: pdf
+    name: PDF Document
+    description: Portable Document Format file
+    mimeType: application/pdf
+    role: Editor
+    rank: Alternate
+    icon: resources/pdf-file
+
+protocols:
+  - name: Dokumen Protocol
+    schemes: [dokumen]
+
+win:
+  target: [nsis]
+  icon: resources/icon.ico
+
+nsis:
+  perMachine: true
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+mac:
+  icon: resources/icon.icns
+  target: [dmg, zip]
+  extendInfo:
+    LSMultipleInstancesProhibited: true
+    LSSupportsOpeningDocumentsInPlace: true
+
+linux:
+  target: [deb, rpm, AppImage]
+  icon: resources/icons
+  mimeTypes: [application/pdf]
+  category: Office
+  desktop:
+    entry:
+      MimeType: application/pdf;x-scheme-handler/dokumen;

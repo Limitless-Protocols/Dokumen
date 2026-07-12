@@ -1,0 +1,30 @@
+{
+  "name": "dokumen",
+  "version": "1.0.0",
+  "description": "PDF Reader with Text-to-Speech",
+  "main": "./out/main/main.js",
+  "author": "Limitless",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "build:win": "npm run build && electron-builder --win --config",
+    "build:mac": "npm run build && electron-builder --mac --config",
+    "build:linux": "npm run build && electron-builder --linux --config"
+  },
+  "dependencies": {
+    "@electron-toolkit/utils": "^4.0.0",
+    "pdfjs-dist": "^4.9.155"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@types/node": "^22.15.3",
+    "electron": "^35.2.1",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^3.1.0",
+    "svelte": "^5.28.2",
+    "svelte-check": "^4.1.7",
+    "typescript": "^5.8.3"
+  }
+}
