@@ -15,14 +15,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            build_cmd: npm run build:win
-            artifact: dist/*.exe
+            build_target: --win
           - os: macos-latest
-            build_cmd: npm run build:mac
-            artifact: dist/*.dmg dist/*.zip
+            build_target: --mac
           - os: ubuntu-latest
-            build_cmd: npm run build:linux
-            artifact: dist/*.deb dist/*.rpm dist/*.AppImage
+            build_target: --linux
 
     runs-on: ${{ matrix.os }}
 
@@ -43,11 +40,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y rpm squashfs-tools
 
-      - name: Build & Package
-        run: ${{ matrix.build_cmd }}
+      - name: Build
+        run: npm run build
+
+      - name: Package
+        run: npx electron-builder ${{ matrix.build_target }} --config --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          PUBLISH: "never"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
