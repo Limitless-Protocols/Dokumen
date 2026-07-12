@@ -413,23 +413,10 @@
   function clearHighlightsOnPage(pageNum: number) {
     const container = document.getElementById(`page-container-${pageNum}`)
     if (container) {
-      container.querySelectorAll('.search-highlight, .tts-highlight-word').forEach(el => {
-        el.classList.remove('search-highlight', 'tts-highlight-word')
+      container.querySelectorAll('.search-highlight').forEach(el => {
+        el.classList.remove('search-highlight')
       })
     }
-  }
-
-  function clearWordHighlights() {
-    scrollContainer?.querySelectorAll('.tts-highlight-word').forEach(el => {
-      el.classList.remove('tts-highlight-word')
-    })
-  }
-
-  function clearAllTtsHighlights() {
-    scrollContainer?.querySelectorAll('.tts-highlight-word').forEach(el => {
-      el.classList.remove('tts-highlight-word')
-    })
-    clearFocusOverlay()
   }
 
   function findSpanForChar(spans: { start: number; end: number }[], charPos: number): number {
@@ -472,16 +459,11 @@
       matchedSpans.add(idx)
     }
 
-    let firstHighlighted: HTMLSpanElement | null = null
-    for (const idx of matchedSpans) {
-      const span = spans[idx]
-      span.el.classList.add('tts-highlight-word')
-      if (!firstHighlighted) firstHighlighted = span.el
-    }
-
-    if (firstHighlighted) {
-      firstHighlighted.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      updateFocusOverlay(pageNum, firstHighlighted)
+    const firstIdx = matchedSpans.size > 0 ? Math.min(...matchedSpans) : -1
+    if (firstIdx >= 0) {
+      const el = spans[firstIdx].el
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      updateFocusOverlay(pageNum, el)
     }
   }
 
@@ -553,7 +535,6 @@
   $effect(() => {
     const unsubBoundary = ttsBoundary.subscribe((boundary) => {
       currentBoundary = boundary
-      clearWordHighlights()
       if (boundary) {
         highlightTtsOnPage(playingPage, boundary.charIndex, boundary.charLength)
       }
@@ -563,10 +544,7 @@
 
   $effect(() => {
     const unsubState = ttsState.subscribe((state) => {
-      if (state === 'paused') {
-        clearFocusOverlay()
-      } else if (state === 'idle') {
-        clearWordHighlights()
+      if (state === 'paused' || state === 'idle') {
         clearFocusOverlay()
       }
     })
@@ -678,14 +656,6 @@
     border-radius: 2px;
     color: transparent !important;
     mix-blend-mode: normal;
-  }
-
-  :global(.textLayer .tts-highlight-word) {
-    background: rgba(255, 193, 7, 0.75) !important;
-    border-radius: 2px;
-    color: transparent !important;
-    mix-blend-mode: normal;
-    box-shadow: 0 0 6px rgba(255, 193, 7, 0.9) !important;
   }
 
   @property --focus-top {
