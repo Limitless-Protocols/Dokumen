@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte'
   import { currentPage, fitMode, totalPages, title, filePath as storeFilePath, pdfDocStore, activeSearchQuery, searchHighlightPages, scrollToPage } from '../stores/reader.svelte'
-  import { pageText, ttsBoundary, ttsFullText, ttsPlayingPage, ttsState, ttsSentenceRange } from '../stores/tts.svelte'
+  import { pageText, ttsBoundary, ttsFullText, ttsPlayingPage, ttsState } from '../stores/tts.svelte'
   import { buildPageText, type PageTextResult } from '../lib/textParser'
 
   let scrollContainer: HTMLDivElement | undefined = $state(undefined)
@@ -24,7 +24,6 @@
   let fullTtsText = ''
   let playingPage = 1
   let speaking = false
-  let sentenceRange: { start: number; end: number } | null = null
 
   const pageTextLayers: Map<number, HTMLDivElement> = new Map()
   const pageSpanMaps: Map<number, { el: HTMLSpanElement; text: string; start: number; end: number }[]> = new Map()
@@ -48,7 +47,6 @@
   ttsFullText.subscribe(v => { fullTtsText = v })
   ttsPlayingPage.subscribe(v => { playingPage = v })
   ttsState.subscribe(v => { speaking = v === 'speaking' || v === 'paused' })
-  ttsSentenceRange.subscribe(v => { sentenceRange = v })
 
   function getContainerWidth(): number {
     return scrollContainer?.clientWidth || 800
@@ -159,6 +157,11 @@
       pageDiv.appendChild(textLayerDiv)
 
       pageTextLayers.set(i, textLayerDiv)
+
+      const focusOverlay = document.createElement('div')
+      focusOverlay.className = 'focus-overlay'
+      focusOverlay.dataset.pageNum = String(i)
+      pageDiv.appendChild(focusOverlay)
 
       scrollContainer.appendChild(pageDiv)
     }
@@ -410,16 +413,10 @@
   function clearHighlightsOnPage(pageNum: number) {
     const container = document.getElementById(`page-container-${pageNum}`)
     if (container) {
-      container.querySelectorAll('.search-highlight, .tts-highlight, .tts-highlight-word').forEach(el => {
-        el.classList.remove('search-highlight', 'tts-highlight', 'tts-highlight-word')
+      container.querySelectorAll('.search-highlight, .tts-highlight-word').forEach(el => {
+        el.classList.remove('search-highlight', 'tts-highlight-word')
       })
     }
-  }
-
-  function clearSentenceHighlights() {
-    scrollContainer?.querySelectorAll('.tts-highlight').forEach(el => {
-      el.classList.remove('tts-highlight')
-    })
   }
 
   function clearWordHighlights() {
@@ -429,9 +426,10 @@
   }
 
   function clearAllTtsHighlights() {
-    scrollContainer?.querySelectorAll('.tts-highlight, .tts-highlight-word').forEach(el => {
-      el.classList.remove('tts-highlight', 'tts-highlight-word')
+    scrollContainer?.querySelectorAll('.tts-highlight-word').forEach(el => {
+      el.classList.remove('tts-highlight-word')
     })
+    clearFocusOverlay()
   }
 
   function findSpanForChar(spans: { start: number; end: number }[], charPos: number): number {
@@ -483,35 +481,35 @@
 
     if (firstHighlighted) {
       firstHighlighted.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      updateFocusOverlay(pageNum, firstHighlighted)
     }
   }
 
-  function highlightSentenceOnPage(pageNum: number, start: number, end: number) {
-    const spans = pageSpanMaps.get(pageNum)
-    const charToSpan = pageCharMaps.get(pageNum)
-    if (!spans || spans.length === 0) return
+  function updateFocusOverlay(pageNum: number, spanEl: HTMLElement) {
+    const pageContainer = document.getElementById(`page-container-${pageNum}`)
+    if (!pageContainer) return
+    const overlay = pageContainer.querySelector('.focus-overlay') as HTMLElement | null
+    if (!overlay) return
 
-    const matchedSpans = new Set<number>()
+    const pageRect = pageContainer.getBoundingClientRect()
+    const spanRect = spanEl.getBoundingClientRect()
 
-    for (let c = start; c < end; c++) {
-      let idx = c < (charToSpan?.length ?? 0) ? charToSpan![c] : undefined
-      if (idx === undefined) {
-        idx = findSpanForChar(spans, c)
-        if (idx === -1) continue
-      }
-      matchedSpans.add(idx)
-    }
+    const spanCenterY = spanRect.top + spanRect.height / 2 - pageRect.top
+    const pageHeight = pageRect.height
 
-    let firstHighlighted: HTMLSpanElement | null = null
-    for (const idx of matchedSpans) {
-      const span = spans[idx]
-      span.el.classList.add('tts-highlight')
-      if (!firstHighlighted) firstHighlighted = span.el
-    }
+    const bandHalf = 20
+    const topPct = Math.max(0, ((spanCenterY - bandHalf) / pageHeight) * 100)
+    const bottomPct = Math.min(100, ((spanCenterY + bandHalf) / pageHeight) * 100)
 
-    if (firstHighlighted) {
-      firstHighlighted.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
+    overlay.style.setProperty('--focus-top', `${topPct}%`)
+    overlay.style.setProperty('--focus-bottom', `${bottomPct}%`)
+    overlay.classList.add('active')
+  }
+
+  function clearFocusOverlay() {
+    scrollContainer?.querySelectorAll('.focus-overlay.active').forEach(el => {
+      el.classList.remove('active')
+    })
   }
 
   $effect(() => {
@@ -558,26 +556,23 @@
       clearWordHighlights()
       if (boundary) {
         highlightTtsOnPage(playingPage, boundary.charIndex, boundary.charLength)
+      } else {
+        clearFocusOverlay()
       }
     })
     return unsubBoundary
   })
 
   $effect(() => {
-    const unsubSentence = ttsSentenceRange.subscribe((range) => {
-      sentenceRange = range
-      clearSentenceHighlights()
-      if (!range) {
-        if (searchQuery) {
-          for (const [pageNum] of pageSpanMaps) {
-            highlightSearchOnPage(pageNum)
-          }
-        }
-        return
+    const unsubState = ttsState.subscribe((state) => {
+      if (state === 'paused') {
+        clearFocusOverlay()
+      } else if (state === 'idle') {
+        clearWordHighlights()
+        clearFocusOverlay()
       }
-      highlightSentenceOnPage(playingPage, range.start, range.end)
     })
-    return unsubSentence
+    return unsubState
   })
 
   $effect(() => {
@@ -678,18 +673,10 @@
     white-space: normal;
     cursor: text;
     transform-origin: left bottom;
-    padding-right: 33%;
   }
 
   :global(.textLayer .search-highlight) {
     background-color: rgba(255, 230, 0, 0.6) !important;
-    border-radius: 2px;
-    color: transparent !important;
-    mix-blend-mode: normal;
-  }
-
-  :global(.textLayer .tts-highlight) {
-    background: rgba(255, 193, 7, 0.3) !important;
     border-radius: 2px;
     color: transparent !important;
     mix-blend-mode: normal;
@@ -701,5 +688,42 @@
     color: transparent !important;
     mix-blend-mode: normal;
     box-shadow: 0 0 6px rgba(255, 193, 7, 0.9) !important;
+  }
+
+  @property --focus-top {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: 50%;
+  }
+
+  @property --focus-bottom {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: 50%;
+  }
+
+  :global(.focus-overlay) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease, --focus-top 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), --focus-bottom 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.5) 0%,
+      rgba(0, 0, 0, 0.5) calc(var(--focus-top) - 8px),
+      transparent calc(var(--focus-top) - 8px),
+      transparent calc(var(--focus-bottom) + 8px),
+      rgba(0, 0, 0, 0.5) calc(var(--focus-bottom) + 8px),
+      rgba(0, 0, 0, 0.5) 100%
+    );
+  }
+
+  :global(.focus-overlay.active) {
+    opacity: 1;
   }
 </style>

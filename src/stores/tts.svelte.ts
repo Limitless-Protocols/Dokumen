@@ -17,11 +17,6 @@ export interface BoundaryInfo {
   charLength: number
 }
 
-export interface SentenceRange {
-  start: number
-  end: number
-}
-
 export const ttsState = writable<TTSState>('idle')
 export const currentSentenceIndex = writable<number>(0)
 export const sentences = writable<string[]>([])
@@ -35,7 +30,6 @@ export const pageText = writable<string>('')
 export const ttsBoundary = writable<BoundaryInfo | null>(null)
 export const ttsFullText = writable<string>('')
 export const ttsPlayingPage = writable<number>(1)
-export const ttsSentenceRange = writable<SentenceRange | null>(null)
 export const ttsSentenceCount = writable<number>(0)
 export const ttsCurrentSentenceIndex = writable<number>(0)
 
@@ -77,12 +71,10 @@ function speakSentenceFrom(index: number, charOffsetInSentence: number, textToSp
   if (!sentence) {
     ttsState.set('idle')
     ttsBoundary.set(null)
-    ttsSentenceRange.set(null)
     isLooping = false
     return
   }
 
-  ttsSentenceRange.set({ start: sentence.start, end: sentence.end })
   ttsCurrentSentenceIndex.set(index)
   currentSentenceIndex.set(index)
   sentences.set(sentencesWithOffsets.map(s => s.text))
@@ -109,7 +101,7 @@ function speakSentenceFrom(index: number, charOffsetInSentence: number, textToSp
   }
 
   utterance.onboundary = (event: SpeechSynthesisBoundaryEvent) => {
-    if (event.name === 'word' || event.name === 'sentence') {
+    if (event.name === 'word') {
       let charLength = event.charLength || 0
       if (!charLength && event.name === 'word') {
         const remaining = textToSpeak.substring(event.charIndex)
@@ -142,7 +134,6 @@ function speakSentenceFrom(index: number, charOffsetInSentence: number, textToSp
     console.error('[Dokumen] TTS error:', e.error)
     ttsState.set('error')
     ttsBoundary.set(null)
-    ttsSentenceRange.set(null)
     isLooping = false
   }
 
@@ -162,7 +153,6 @@ function speakSentence(index: number) {
     }
     ttsState.set('idle')
     ttsBoundary.set(null)
-    ttsSentenceRange.set(null)
     isLooping = false
     return
   }
@@ -254,7 +244,6 @@ export function stop() {
   ttsCurrentSentenceIndex.set(0)
   ttsSentenceCount.set(0)
   ttsBoundary.set(null)
-  ttsSentenceRange.set(null)
   sentences.set([])
   currentUtterance = null
   pausedSentenceIndex = 0

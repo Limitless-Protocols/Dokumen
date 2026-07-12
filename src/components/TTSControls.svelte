@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ttsState, speak, pause, resume, stop, nextSentence, prevSentence, setRate, setVoice, ttsConfig, initTTS, pageText } from '../stores/tts.svelte'
-  import { currentPage, totalPages, pdfDocStore } from '../stores/reader.svelte'
+  import { currentPage, totalPages, pdfDocStore, scrollToPage } from '../stores/reader.svelte'
   import { extractTextFromPage } from '../lib/pdfTextExtract'
 
   let availableVoices = $state<SpeechSynthesisVoice[]>([])
@@ -15,11 +15,33 @@
     return () => window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices)
   })
 
-  function handlePlayPause() {
+  async function handlePlayPause() {
     const state = $ttsState
     if (state === 'idle') {
-      const text = $pageText
-      if (text) speak(text, $currentPage)
+      const doc = $pdfDocStore
+      if (!doc) return
+
+      let text = $pageText
+      let pageNum = $currentPage
+
+      if (!text || !text.trim()) {
+        for (let i = $currentPage; i <= $totalPages; i++) {
+          const pageTextResult = await extractTextFromPage(doc, i)
+          if (pageTextResult && pageTextResult.trim()) {
+            text = pageTextResult
+            pageNum = i
+            break
+          }
+        }
+      }
+
+      if (text && text.trim()) {
+        if (pageNum !== $currentPage) {
+          currentPage.set(pageNum)
+          scrollToPage(pageNum)
+        }
+        speak(text, pageNum)
+      }
     } else if (state === 'paused') {
       resume()
     } else if (state === 'speaking') {
