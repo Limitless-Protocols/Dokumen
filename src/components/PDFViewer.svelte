@@ -462,7 +462,7 @@
     const firstIdx = matchedSpans.size > 0 ? Math.min(...matchedSpans) : -1
     if (firstIdx >= 0) {
       const el = spans[firstIdx].el
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      el.scrollIntoView({ behavior: 'smooth', block: fitModeValue === 'height' ? 'nearest' : 'center' })
       updateFocusOverlay(pageNum, el)
     }
   }
