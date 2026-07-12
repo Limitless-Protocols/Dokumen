@@ -556,8 +556,6 @@
       clearWordHighlights()
       if (boundary) {
         highlightTtsOnPage(playingPage, boundary.charIndex, boundary.charLength)
-      } else {
-        clearFocusOverlay()
       }
     })
     return unsubBoundary

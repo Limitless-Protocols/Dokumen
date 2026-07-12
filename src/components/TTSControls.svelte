@@ -27,7 +27,7 @@
       if (!text || !text.trim()) {
         for (let i = $currentPage; i <= $totalPages; i++) {
           const pageTextResult = await extractTextFromPage(doc, i)
-          if (pageTextResult && pageTextResult.trim()) {
+          if (pageTextResult && pageTextResult.trim().length >= 20) {
             text = pageTextResult
             pageNum = i
             break
