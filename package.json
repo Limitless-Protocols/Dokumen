@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "PDF Reader with Text-to-Speech",
   "main": "./out/main/main.js",
-  "author": "Limitless",
-  "license": "UNLICENSED",
+  "author": "Limitless Protocols",
+  "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
