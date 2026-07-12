@@ -479,7 +479,7 @@
     const spanCenterY = spanRect.top + spanRect.height / 2 - pageRect.top
     const pageHeight = pageRect.height
 
-    const bandHalf = 20
+    const bandHalf = pageHeight * 0.015
     const topPct = Math.max(0, ((spanCenterY - bandHalf) / pageHeight) * 100)
     const bottomPct = Math.min(100, ((spanCenterY + bandHalf) / pageHeight) * 100)
 
