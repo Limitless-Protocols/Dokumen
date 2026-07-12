@@ -40,12 +40,13 @@
       recalculateScale()
       rerenderAll()
       if (speaking || currentBoundary) {
+        scrollToPage(playingPage)
         setTimeout(() => {
           const boundary = currentBoundary
           if (boundary) {
             highlightTtsOnPage(playingPage, boundary.charIndex, boundary.charLength)
           }
-        }, 100)
+        }, 300)
       }
     }
   })
